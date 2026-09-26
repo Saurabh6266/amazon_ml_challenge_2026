@@ -11,9 +11,9 @@ This is a complete, production-ready **Entity Resolution pipeline** for the Amaz
 
 | Stage | What it does | Time |
 |---|---|---|
-| `src/baseline.py` | TF-IDF cosine baseline, no training needed | ~60–90 min |
-| `src/pipeline.py --no-embeddings` | Full ML pipeline (LightGBM, RapidFuzz features) | ~3–4 h |
-| `src/pipeline.py` | Full ML + multilingual embeddings (French support) | ~5–6 h |
+| `src/baseline.py` | TF-IDF cosine baseline, no training needed | Not yet known on this machine |
+| `src/pipeline.py --no-embeddings` | Full ML pipeline (LightGBM, RapidFuzz features) | Not yet measured; potentially many hours |
+| `src/pipeline.py` | Full ML + multilingual embeddings | Not yet measured; high memory/runtime risk |
 
 **Current leaderboard status:** Baseline running with threshold=0.70 (higher precision, fewer false merges).
 
@@ -51,7 +51,7 @@ mkdir -p output logs models
 
 ### 🔵 Teammate 1 — Full Pipeline WITHOUT Embeddings
 
-**Goal:** Get a strong ML baseline score. Expected F_0.5: **0.90–0.94**
+**Goal:** Measure held-out F_0.5. No score range is verified yet.
 
 ```bash
 mkdir -p logs
@@ -90,7 +90,7 @@ python3 utils/validate_submission.py \
 
 ### 🟢 Teammate 2 — Full Pipeline WITH Embeddings (French support)
 
-**Goal:** Highest possible score by using multilingual embeddings for French. Expected F_0.5: **0.92–0.96**
+**Goal:** Compare embeddings against the no-embedding validation result. They may not improve the score enough to justify their runtime.
 
 The key difference: `paraphrase-multilingual-MiniLM-L12-v2` (Apache 2.0, 118M params) handles French text natively without any language-specific rules.
 
@@ -221,11 +221,10 @@ from scoring import f_beta_row
 
 ```
 src/
-├── normalize.py      Language-agnostic normalization (NFKD + ASCII, char 3-grams)
+├── normalize.py      Language-agnostic normalization (NFKD + ASCII)
 │                     No country-specific rules → works on US, India, AND French
 │
-├── blocking.py       Phase 1: Country partition + TF-IDF char-3gram + chunked sparse cosine
-│                     Memory-safe: 8GB RAM verified. Uses per-S1 heap for top-K.
+├── blocking.py       Phase 1: Country partition + word TF-IDF + sparse top-K cosine
 │
 ├── features.py       Phase 2: 13 RapidFuzz features + multilingual embedding cosine
 │                     Jaro-Winkler, Levenshtein, token sort/set ratios, length signals
@@ -240,7 +239,7 @@ src/
 ├── postprocess.py    Greedy 1-to-1 conflict resolution + TSV writers
 │                     Enforces: each S2/S3 entity → at most one S1 entity
 │
-├── pipeline.py       Main CLI orchestrator (--mode full/train/validate_blocking)
+├── pipeline.py       Main CLI orchestrator (--mode full/validate_blocking)
 │
 └── baseline.py       Fast TF-IDF baseline (no training, just blocking + threshold)
 ```
@@ -257,7 +256,7 @@ All numbers computed from the official dataset (not external sources):
 | Train S1 entities | 2,206,821 |
 | Singleton S1 (no matches) | 5.58% (123,247) |
 | S2+S3 distractor rate | 26.0% |
-| 1-to-1 cardinality violations | **0** (strict) |
+| Target IDs reused across S1 rows in training labels | 0 (observed; not an explicit PS rule) |
 | France in test only | 15.0% of test S1 (259,452 entities) |
 | True pair Jaccard: median | 0.71 (TF-IDF captures this well) |
 

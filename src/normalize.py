@@ -8,7 +8,8 @@ We handle US, India (incl. Devanagari), and unseen France equally through:
   3. Punctuation → space
   4. Whitespace collapse
 
-Character 3-grams then absorb suffix/abbrev noise without hardcoded rules.
+Blocking currently uses normalized whole words. RapidFuzz character/string
+metrics are applied after candidate generation; typo-only pairs may be missed.
 """
 
 import re
@@ -48,7 +49,10 @@ def char_ngrams(s: str, n: int = 3) -> str:
     return " ".join(s[i : i + n] for i in range(len(s) - n + 1))
 
 
-def build_block_text(name, address, n: int = 3) -> str:
-    """Combine normalized name+address into TF-IDF-ready char n-gram string."""
-    combined = (normalize_text(name) + " " + normalize_text(address)).strip()
-    return char_ngrams(combined, n=n)
+def build_block_text(name, address) -> str:
+    """Combine normalized name+address into TF-IDF-ready word string.
+
+    Whole-word TF-IDF is the current blocking representation. It is sparse but
+    does not guarantee O(1) retrieval and may miss typo-only overlaps.
+    """
+    return (normalize_text(name) + " " + normalize_text(address)).strip()

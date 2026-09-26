@@ -115,7 +115,9 @@ def _get_embed_model():
     return _embed_model
 
 
-def embed_texts_batch(texts: List[str], batch_size: int = 512) -> np.ndarray:
+def embed_texts_batch(
+    texts: List[str], batch_size: int = 512, show_progress_bar: bool = True
+) -> np.ndarray:
     """Encode a list of texts to L2-normalized embeddings.
 
     Args:
@@ -130,7 +132,7 @@ def embed_texts_batch(texts: List[str], batch_size: int = 512) -> np.ndarray:
         texts,
         batch_size=batch_size,
         normalize_embeddings=True,
-        show_progress_bar=True,
+        show_progress_bar=show_progress_bar,
         convert_to_numpy=True,
     )
     return embeddings
@@ -139,19 +141,32 @@ def embed_texts_batch(texts: List[str], batch_size: int = 512) -> np.ndarray:
 def compute_embedding_cosines(
     s1_texts: List[str],
     cand_texts: List[str],
+    pair_batch_size: int = 4096,
 ) -> np.ndarray:
     """Compute cosine similarities for paired texts in a single batch.
 
     Both lists must be the same length (aligned pairs).
     Since embeddings are L2-normalized, cosine = dot product.
     """
-    all_texts = s1_texts + cand_texts
-    all_embs = embed_texts_batch(all_texts)
-    s1_embs = all_embs[: len(s1_texts)]
-    cand_embs = all_embs[len(s1_texts) :]
-    # Dot product of already-normalized vectors = cosine similarity
-    cosines = (s1_embs * cand_embs).sum(axis=1)
-    return cosines.astype(np.float32)
+    if len(s1_texts) != len(cand_texts):
+        raise ValueError("s1_texts and cand_texts must have the same length")
+
+    # Do not materialize embeddings for the entire candidate set at once. At
+    # millions of pairs, the previous 2*N by 384 float32 array could consume
+    # tens of gigabytes before feature scoring even began.
+    cosines = np.empty(len(s1_texts), dtype=np.float32)
+    n_batches = (len(s1_texts) + pair_batch_size - 1) // pair_batch_size
+    for batch_idx, start in enumerate(range(0, len(s1_texts), pair_batch_size)):
+        end = min(start + pair_batch_size, len(s1_texts))
+        texts = s1_texts[start:end] + cand_texts[start:end]
+        embs = embed_texts_batch(texts, batch_size=512, show_progress_bar=False)
+        n = end - start
+        # Embeddings are normalized, so dot product is cosine similarity.
+        cosines[start:end] = np.einsum("ij,ij->i", embs[:n], embs[n:])
+        del texts, embs
+        if (batch_idx + 1) % 100 == 0 or batch_idx + 1 == n_batches:
+            logger.info("Embedding batches: %d/%d", batch_idx + 1, n_batches)
+    return cosines
 
 
 def build_feature_matrix(
@@ -175,9 +190,9 @@ def build_feature_matrix(
         return np.empty((0, len(FEATURE_COLS)), dtype=np.float32), []
 
     pair_ids = [(s1_id, cand_id) for s1_id, cand_id, _ in pairs]
-    feature_list = []
+    X = np.empty((len(pairs), len(FEATURE_COLS)), dtype=np.float32)
 
-    for s1_id, cand_id, sim in pairs:
+    for i, (s1_id, cand_id, sim) in enumerate(pairs):
         s1 = id_to_row.get(s1_id, {})
         cand = id_to_row.get(cand_id, {})
         feats = pair_features_basic(
@@ -187,7 +202,7 @@ def build_feature_matrix(
             cand.get("business_address"),
             tfidf_sim=sim,
         )
-        feature_list.append(feats)
+        X[i] = [feats[col] for col in FEATURE_COLS]
 
     # Fill embedding cosines in batch (far more efficient than per-pair)
     if use_embeddings:
@@ -202,12 +217,7 @@ def build_feature_matrix(
             cand_texts.append(
                 (cand.get("business_name") or "") + " " + (cand.get("business_address") or "")
             )
-        cosines = compute_embedding_cosines(s1_texts, cand_texts)
-        for i, feats in enumerate(feature_list):
-            feats["embedding_cosine"] = float(cosines[i])
-
-    X = np.array(
-        [[f[col] for col in FEATURE_COLS] for f in feature_list],
-        dtype=np.float32,
-    )
+        X[:, FEATURE_COLS.index("embedding_cosine")] = compute_embedding_cosines(
+            s1_texts, cand_texts
+        )
     return X, pair_ids

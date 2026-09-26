@@ -22,3 +22,4 @@ torch>=2.0.0
 # Numerics
 numpy>=1.24.0
 pandas>=2.0.0
+sparse_dot_topn>=1.2.0

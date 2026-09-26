@@ -33,8 +33,8 @@ python3 utils/validate_submission.py \
 
 ```
 src/
-├── normalize.py     Language-agnostic NFKD+ASCII text normalization (no regex rules)
-├── blocking.py      Phase 1: Country partition + TF-IDF char-3gram + FAISS ANN
+├── normalize.py     Language-agnostic NFKD+ASCII text normalization
+├── blocking.py      Phase 1: Country partition + word TF-IDF + sparse top-K cosine
 ├── features.py      Phase 2: RapidFuzz string distances + multilingual embeddings
 ├── scoring.py       Exact F_0.5 macro-average implementation (verified vs README)
 ├── train.py         LightGBM + GroupShuffleSplit + F_0.5 threshold tuning
@@ -44,11 +44,17 @@ src/
 
 ## Key Design Decisions
 
-1. **No country-specific regex** — all text features are pure math (cosine, edit distance)
-2. **Char 3-grams** absorb abbreviation/suffix noise without hardcoded rules
-3. **Apache 2.0 multilingual model** handles French test set natively
-4. **Threshold tuned on macro F_0.5** (not AUC, not accuracy) on held-out val split
-5. **Greedy 1-to-1 conflict resolution** enforces the dataset's cardinality constraint
+1. Country partitioning avoids cross-country comparisons.
+2. The current word-level blocker is sparse and avoids a dense all-pairs matrix,
+   but can miss pairs that share no exact normalized word.
+3. Embeddings are optional and computationally expensive at this scale; their
+   benefit must be established with held-out validation.
+4. The ML threshold is tuned on macro F_0.5 for candidate-bearing held-out S1s.
+5. Training labels show no target ID reused across S1 entities. Greedy conflict
+   resolution uses that observed pattern; it is not an explicit challenge rule.
+
+The baseline threshold 0.70 is experimental, not a validated optimum. The
+baseline script does not calculate a score; only the leaderboard can report it.
 
 ## Output Files
 

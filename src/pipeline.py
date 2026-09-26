@@ -5,12 +5,6 @@ Usage:
     # Full pipeline (train + predict on test set):
     python3 src/pipeline.py --mode full
 
-    # Only run blocking + training (to tune without re-blocking):
-    python3 src/pipeline.py --mode train
-
-    # Only run inference with saved model:
-    python3 src/pipeline.py --mode predict
-
     # Validate blocking recall before training:
     python3 src/pipeline.py --mode validate_blocking
 
@@ -149,21 +143,18 @@ def run_full_pipeline(args):
 
     # ─── PHASE 2b: ASSEMBLE LABELED DATAFRAME ─────────────────────────────────
     logger.info("Building labeled DataFrame...")
-    rows = []
-    for i, (s1_id, cand_id) in enumerate(train_pair_ids):
-        true_matches = gt_map.get(s1_id, set())
-        label = 1 if cand_id in true_matches else 0
-        row = {col: float(X_train_all[i, j]) for j, col in enumerate(FEATURE_COLS)}
-        row["source1_entity_id"] = s1_id
-        row["candidate_entity_id"] = cand_id
-        row["label"] = label
-        rows.append(row)  # inside loop
-
-    del X_train_all, train_pairs_flat
-    gc.collect()
-
-    df = pd.DataFrame(rows)
-    del rows
+    # Assemble columns directly. Building one Python dict per candidate pair
+    # multiplies memory use several-fold on this multi-million-pair dataset.
+    labels = np.fromiter(
+        (int(cand_id in gt_map.get(s1_id, set())) for s1_id, cand_id in train_pair_ids),
+        dtype=np.uint8,
+        count=len(train_pair_ids),
+    )
+    df = pd.DataFrame(X_train_all, columns=FEATURE_COLS, copy=False)
+    df["source1_entity_id"] = [s1_id for s1_id, _ in train_pair_ids]
+    df["candidate_entity_id"] = [cand_id for _, cand_id in train_pair_ids]
+    df["label"] = labels
+    del X_train_all, train_pairs_flat, train_pair_ids, labels
     gc.collect()
 
     n_pos = (df["label"] == 1).sum()
@@ -314,7 +305,7 @@ def main():
     )
     parser.add_argument(
         "--mode",
-        choices=["full", "train", "predict", "validate_blocking"],
+        choices=["full", "validate_blocking"],
         default="full",
         help="Pipeline mode (default: full)",
     )
@@ -361,14 +352,10 @@ def main():
 
     args = parser.parse_args()
 
-    if args.mode in ("full", "train", "validate_blocking"):
-        if args.mode == "validate_blocking":
-            run_validate_blocking(args)
-        else:
-            run_full_pipeline(args)
-    elif args.mode == "predict":
-        logger.error("Predict-only mode not yet implemented. Use --mode full.")
-        sys.exit(1)
+    if args.mode == "validate_blocking":
+        run_validate_blocking(args)
+    else:
+        run_full_pipeline(args)
 
 
 if __name__ == "__main__":
