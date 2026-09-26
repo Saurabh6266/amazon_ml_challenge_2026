@@ -1,0 +1,24 @@
+# Amazon ML Challenge 2026 — pinned dependencies
+# Install: pip install -r requirements.txt
+
+# Data handling
+polars>=1.0.0
+
+# ML models
+lightgbm>=4.0.0
+xgboost>=2.0.0
+scikit-learn>=1.3.0
+
+# String similarity (language-agnostic)
+rapidfuzz>=3.0.0
+
+# ANN / vector search
+faiss-cpu>=1.7.4  # Use faiss-gpu if CUDA available
+
+# Multilingual embeddings (Apache 2.0, ~118M params << 8B limit)
+sentence-transformers>=2.7.0
+torch>=2.0.0
+
+# Numerics
+numpy>=1.24.0
+pandas>=2.0.0

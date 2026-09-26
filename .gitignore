@@ -1,0 +1,68 @@
+# ─── Dataset files (too large for GitHub, ~2.5GB) ─────────────────────────
+dataset/train/
+dataset/test/
+dataset/**/*.tsv
+
+# ─── Output files (generated, not source) ────────────────────────────────
+output/
+models/
+
+# ─── Logs ────────────────────────────────────────────────────────────────
+logs/
+*.log
+
+# ─── Python cache ────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyo
+.Python
+*.pyc
+
+# ─── Virtual environments ────────────────────────────────────────────────
+venv/
+.venv/
+env/
+.env/
+ENV/
+
+# ─── Jupyter notebooks checkpoints ──────────────────────────────────────
+.ipynb_checkpoints/
+*.ipynb
+
+# ─── macOS system files ──────────────────────────────────────────────────
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# ─── IDE / editor files ──────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ─── Temp / scratch files ────────────────────────────────────────────────
+tmp/
+temp/
+scratch/
+*.tmp
+
+# ─── Model artifacts (large binaries) ────────────────────────────────────
+models/
+*.pkl
+*.joblib
+*.h5
+*.pt
+*.bin
+
+# ─── HuggingFace model cache (can be re-downloaded) ─────────────────────
+.cache/
+~/.cache/huggingface/
+
+# ─── Keep these dataset placeholder dirs in git ──────────────────────────
+# (So cloners know where to put their data)
+!dataset/.gitkeep
+!dataset/train/.gitkeep
+!dataset/test/.gitkeep
+!output/.gitkeep
